@@ -1,0 +1,27 @@
+ 
+  1. python -m venv .venv && source .venv/bin/activate && pip install -r src/requirements.txt
+  2. Store OPENAI_API_KEY in /etc/credstore.encrypted/codexkey.cred, then run python src/orchestrator.py
+  3. Adjust the prompt template or model via input/prompt_template.txt (or --input-template) and
+     --model if you want different output shape
+
+
+ Updated Plan
+  └ ✔ Confirm requirements and reference docs (AGENTS/goal/proposal, Context7 docs).
+    ✔ Design the scenario parsing + sequential workflow, including prompt template and output artifacts.
+    ✔ Implement the orchestrator and supporting files (requirements, README, env example).
+    ✔ Review for consistency with repo guidance and note next steps.
+
+─ Worked for 7m 52s ──────────────────────────────────────────────────────────────────────────────────────
+
+• Implemented an end‑to‑end sequential workflow and the supporting scaffolding so the project can run
+  against input/DataTransferScenarioList.md without hard‑coding scenarios. The new orchestrator parses the
+  scenario headings, calibrates a prompt template once, runs each scenario through Codex MCP sequentially,
+  and aggregates the results.
+
+  - Core workflow lives in src/orchestrator.py, including scenario parsing, prompt calibration, sequential
+    execution, and aggregation.
+  - Added runtime scaffolding in src/requirements.txt and systemd credentials for the Agents SDK + Codex MCP flow.
+  - Documented setup and usage in README.md, including outputs like outputs/todo_scenarios.txt,
+    outputs/MASTER_RESULTS.md, outputs/prompt_template.txt, and outputs/scenario_manifest.json.
+
+  Tests not run (no automated tests configured).
