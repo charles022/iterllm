@@ -23,7 +23,7 @@ Store your API key in a systemd credential (used by `src/orchestrator.py`):
 
 ```bash
 sudo install -d /etc/credstore.encrypted
-printf '%s' "$OPENAI_API_KEY" | sudo systemd-creds encrypt - /etc/credstore.encrypted/codexkey.cred
+printf '%s' "$OPENAI_API_KEY" | sudo systemd-creds encrypt - /etc/credstore.encrypted/codex_key
 ```
 
 ## Run

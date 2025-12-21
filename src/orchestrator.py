@@ -22,7 +22,7 @@ from agents import Agent, ModelSettings, Runner, set_default_openai_api
 from agents.mcp import MCPServerStdio
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-CRED_FILE = Path("/etc/credstore.encrypted/codexkey.cred")
+CRED_FILE = Path("/etc/credstore.encrypted/codex_key")
 
 SCENARIO_HEADER_RE = re.compile(
     r"^(?P<hashes>#{1,6})\s+(?P<number>\d+(?:\.\d+)*)\)\s+(?P<title>.+?)\s*$"
@@ -87,7 +87,7 @@ def normalize_ascii(text: str) -> str:
 
 def _decrypt_credential(path: Path) -> str:
     process = subprocess.Popen(
-        ["systemd-creds", "decrypt", str(path), "-"],
+        ["systemd-creds", "decrypt", str(path)]
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -95,7 +95,10 @@ def _decrypt_credential(path: Path) -> str:
     out, err = process.communicate()
     if process.returncode != 0:
         raise RuntimeError(f"Credential decryption failed: {err.strip()}")
-    return out.strip()
+    s = out.strip()
+    if not s:
+        raise RuntimeError("Decryption produced no output; verify systemd-creds decrypt behavior on this host")
+    return s
 
 
 @lru_cache(maxsize=1)
