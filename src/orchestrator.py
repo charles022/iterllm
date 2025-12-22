@@ -17,7 +17,7 @@ from typing import Iterable, List
 
 from openai.types.shared import Reasoning
 
-from agents import Agent, ModelSettings, Runner, set_default_openai_api
+from agents import Agent, ModelSettings, Runner, set_default_openai_key
 from agents.mcp import MCPServerStdio
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -253,6 +253,7 @@ def aggregate_outputs(
 async def build_prompt_template(
     scheduler: Agent, base_template: str, prompt_template_path: Path
 ) -> str:
+    print("[orchestrator] Sending prompt calibration request to Scheduler...", file=sys.stderr)
     request = (
         "Improve the following prompt template for an Executor agent.\n"
         "Return only the updated template text, with no commentary.\n"
@@ -267,6 +268,7 @@ async def build_prompt_template(
     if not validate_template(candidate):
         candidate = base_template
     prompt_template_path.write_text(candidate + "\n", encoding="utf-8")
+    print("[orchestrator] Prompt calibration complete.", file=sys.stderr)
     return candidate
 
 
@@ -279,10 +281,12 @@ async def run_executor(
     max_scenarios: int | None,
 ) -> None:
     limit = len(scenarios) if max_scenarios is None else max_scenarios
+    print(f"[orchestrator] Starting execution of {limit} scenarios...", file=sys.stderr)
     for scenario in scenarios[:limit]:
         output_path = output_dir / output_filename(scenario.index)
         if output_path.exists() and not overwrite:
             continue
+        print(f"[orchestrator] Processing scenario {scenario.number}: {scenario.title}...", file=sys.stderr)
         prompt = render_prompt(prompt_template, scenario, output_path)
         await Runner.run(executor, prompt)
 
@@ -297,6 +301,7 @@ async def calibrate_executor(
     output_path = output_dir / output_filename(scenario.index)
     if output_path.exists() and not overwrite:
         return
+    print(f"[orchestrator] Sending calibration task (Scenario {scenario.number}) to Executor...", file=sys.stderr)
     prompt = render_prompt(prompt_template, scenario, output_path)
     await Runner.run(executor, prompt)
     if not output_path.exists():
@@ -430,8 +435,10 @@ async def main() -> None:
     config = load_configuration(ROOT_DIR / "src/.env")
     args = build_arg_parser(config).parse_args()
 
+    print("[orchestrator] Starting orchestrator, attempting to load API key...", file=sys.stderr)
     api_key = load_api_key(config.get("CREDENTIAL_PATH", ""))
-    set_default_openai_api(api_key)
+    set_default_openai_key(api_key)
+    print("[orchestrator] API key loaded and configured.", file=sys.stderr)
     model_settings = resolve_model_settings(args.model, args.reasoning_effort)
     if model_settings is None:
         model_settings = ModelSettings()
@@ -462,11 +469,13 @@ async def main() -> None:
     write_manifest(scenarios, output_dir, input_path, output_dir / "scenario_manifest.json")
 
     codex_args = build_codex_args(args.model, args.reasoning_effort)
+    print("[orchestrator] Connecting to Codex MCP...", file=sys.stderr)
     async with MCPServerStdio(
         name="Codex CLI",
         params={"command": "npx", "args": codex_args},
         client_session_timeout_seconds=360000,
     ) as codex_mcp:
+        print("[orchestrator] Successfully connected to Codex MCP.", file=sys.stderr)
         scheduler = Agent(
             name="Scheduler",
             instructions=(

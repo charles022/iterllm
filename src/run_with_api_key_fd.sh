@@ -22,6 +22,7 @@ if [[ "$1" != "--" ]]; then
 fi
 shift
 
+echo "[wrapper] Requesting sudo access for credential decryption..."
 # Ensure we have sudo permissions
 sudo -v
 
@@ -29,5 +30,6 @@ sudo -v
 # The process substitution runs the decrypt and feeds it into FD 3.
 exec 3< <(sudo systemd-creds decrypt "$CRED_PATH" | tr -d '\n')
 
+echo "[wrapper] Decryption successful, launching command..."
 # Launch python (or any command). It can read the key from FD 3.
 exec "$@"
