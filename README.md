@@ -63,6 +63,7 @@ Useful flags:
 
 ## Logs
 - `logs/error_output/` – captured stderr and failure traces from full runs
+- `logs/run-*/` – per-run artifacts (JSONL event logs, agent call logs, MCP traffic, SDK debug logs)
 - `run-status-and-next-steps.md` – current state, observed failures, and follow-up plan
 
 ## Notes

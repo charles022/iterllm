@@ -5,15 +5,15 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Mapping, Optional
 
 from openai.types.shared import Reasoning
 
@@ -65,6 +65,68 @@ class Scenario:
 
     def display_title(self) -> str:
         return f"{self.number}) {self.title}".strip()
+
+
+@dataclass(frozen=True)
+class RunLogConfig:
+    run_id: str
+    log_dir: Path
+    events_path: Path
+    runs_path: Path
+    agent_log_path: Path
+
+    def log_event(self, event: str, payload: Mapping[str, object] | None = None) -> None:
+        data = {"ts": utc_timestamp(), "event": event}
+        if payload:
+            data.update(payload)
+        append_jsonl(self.events_path, data)
+
+    def log_run(self, payload: Mapping[str, object]) -> None:
+        append_jsonl(self.runs_path, payload)
+
+
+def utc_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def make_run_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def append_jsonl(path: Path, payload: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=True) + "\n")
+
+
+def initialize_run_logs(log_dir: Path, run_id: str) -> RunLogConfig:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return RunLogConfig(
+        run_id=run_id,
+        log_dir=log_dir,
+        events_path=log_dir / "run_events.jsonl",
+        runs_path=log_dir / "agent_runs.jsonl",
+        agent_log_path=log_dir / "agents_sdk.log",
+    )
+
+
+def configure_agents_logging(run_logs: RunLogConfig) -> None:
+    formatter = logging.Formatter(
+        fmt="%(asctime)sZ %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+    handler = logging.FileHandler(run_logs.agent_log_path, encoding="utf-8")
+    handler.setFormatter(formatter)
+    for logger_name in ("openai.agents", "openai.agents.tracing", "openai.agents.mcp"):
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = False
+        if not any(
+            isinstance(h, logging.FileHandler)
+            and getattr(h, "baseFilename", None) == handler.baseFilename
+            for h in logger.handlers
+        ):
+            logger.addHandler(handler)
 
 
 def load_configuration(env_path: Path) -> dict[str, str]:
@@ -249,8 +311,72 @@ def aggregate_outputs(
     results_path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 
+def capture_usage(result: object) -> Optional[dict[str, int]]:
+    usage = getattr(getattr(result, "context_wrapper", None), "usage", None)
+    if not usage:
+        return None
+    return {
+        "requests": getattr(usage, "requests", None),
+        "input_tokens": getattr(usage, "input_tokens", None),
+        "output_tokens": getattr(usage, "output_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+    }
+
+
+async def run_agent_with_logging(
+    agent: Agent,
+    prompt: str,
+    run_logs: RunLogConfig,
+    run_kind: str,
+    metadata: Mapping[str, object] | None = None,
+) -> object:
+    payload = {
+        "ts": utc_timestamp(),
+        "event": "agent_run_start",
+        "run_kind": run_kind,
+        "agent": agent.name,
+        "prompt": prompt,
+    }
+    if metadata:
+        payload.update(metadata)
+    run_logs.log_run(payload)
+    try:
+        result = await Runner.run(agent, prompt)
+    except Exception as exc:
+        run_logs.log_run(
+            {
+                "ts": utc_timestamp(),
+                "event": "agent_run_error",
+                "run_kind": run_kind,
+                "agent": agent.name,
+                "error": str(exc),
+                **(metadata or {}),
+            }
+        )
+        raise
+    output_value = getattr(result, "final_output", None)
+    if output_value is not None and not isinstance(output_value, str):
+        output_value = str(output_value)
+    run_logs.log_run(
+        {
+            "ts": utc_timestamp(),
+            "event": "agent_run_end",
+            "run_kind": run_kind,
+            "agent": agent.name,
+            "output": output_value,
+            "last_response_id": getattr(result, "last_response_id", None),
+            "usage": capture_usage(result),
+            **(metadata or {}),
+        }
+    )
+    return result
+
+
 async def build_prompt_template(
-    scheduler: Agent, base_template: str, prompt_template_path: Path
+    scheduler: Agent,
+    base_template: str,
+    prompt_template_path: Path,
+    run_logs: RunLogConfig,
 ) -> str:
     print("[orchestrator] Sending prompt calibration request to Scheduler...", file=sys.stderr)
     request = (
@@ -262,7 +388,13 @@ async def build_prompt_template(
         "Template:\n"
         f"{base_template}\n"
     )
-    result = await Runner.run(scheduler, request)
+    result = await run_agent_with_logging(
+        scheduler,
+        request,
+        run_logs,
+        run_kind="prompt_calibration",
+        metadata={"prompt_template_path": display_path(prompt_template_path)},
+    )
     candidate = normalize_ascii(result.final_output.strip())
     if not validate_template(candidate):
         candidate = base_template
@@ -278,6 +410,7 @@ async def run_executor(
     executor: Agent,
     overwrite: bool,
     max_scenarios: int | None,
+    run_logs: RunLogConfig,
 ) -> None:
     limit = len(scenarios) if max_scenarios is None else max_scenarios
     print(f"[orchestrator] Starting execution of {limit} scenarios...", file=sys.stderr)
@@ -287,7 +420,17 @@ async def run_executor(
             continue
         print(f"[orchestrator] Processing scenario {scenario.number}: {scenario.title}...", file=sys.stderr)
         prompt = render_prompt(prompt_template, scenario, output_path)
-        await Runner.run(executor, prompt)
+        await run_agent_with_logging(
+            executor,
+            prompt,
+            run_logs,
+            run_kind="scenario_run",
+            metadata={
+                "scenario_number": scenario.number,
+                "scenario_title": scenario.title,
+                "output_path": display_path(output_path),
+            },
+        )
 
 
 async def calibrate_executor(
@@ -296,13 +439,24 @@ async def calibrate_executor(
     prompt_template: str,
     executor: Agent,
     overwrite: bool,
+    run_logs: RunLogConfig,
 ) -> None:
     output_path = output_dir / output_filename(scenario.index)
     if output_path.exists() and not overwrite:
         return
     print(f"[orchestrator] Sending calibration task (Scenario {scenario.number}) to Executor...", file=sys.stderr)
     prompt = render_prompt(prompt_template, scenario, output_path)
-    await Runner.run(executor, prompt)
+    await run_agent_with_logging(
+        executor,
+        prompt,
+        run_logs,
+        run_kind="executor_calibration",
+        metadata={
+            "scenario_number": scenario.number,
+            "scenario_title": scenario.title,
+            "output_path": display_path(output_path),
+        },
+    )
     if not output_path.exists():
         raise RuntimeError(
             "Calibration failed: executor did not write the expected output file."
@@ -332,6 +486,11 @@ def build_arg_parser(config: dict[str, str]) -> argparse.ArgumentParser:
         "--output-dir",
         default=ROOT_DIR / "outputs",
         help="Directory for per-scenario outputs.",
+    )
+    parser.add_argument(
+        "--log-dir",
+        default=None,
+        help="Directory for run logs. Defaults to logs/run-<timestamp>.",
     )
     parser.add_argument(
         "--todo-file",
@@ -424,6 +583,23 @@ def build_codex_args(model_name: str, effort: str) -> list[str]:
     return args
 
 
+def build_mcp_server_params(codex_args: list[str], log_dir: Path) -> dict[str, object]:
+    wrapper_path = ROOT_DIR / "src/mcp_stdio_logger.py"
+    return {
+        "command": sys.executable,
+        "args": [
+            str(wrapper_path),
+            "--log-dir",
+            str(log_dir.resolve()),
+            "--name",
+            "codex_mcp",
+            "--",
+            "npx",
+            *codex_args,
+        ],
+    }
+
+
 def resolve_project_path(path: Path) -> Path:
     return path if path.is_absolute() else ROOT_DIR / path
 
@@ -442,6 +618,26 @@ async def main() -> None:
     
     config = load_configuration(ROOT_DIR / "src/.env")
     args = build_arg_parser(config).parse_args()
+    run_id = make_run_id()
+    log_dir = (
+        resolve_project_path(Path(args.log_dir))
+        if args.log_dir
+        else ROOT_DIR / "logs" / f"run-{run_id}"
+    )
+    run_logs = initialize_run_logs(log_dir, run_id)
+    configure_agents_logging(run_logs)
+    run_logs.log_event(
+        "run_start",
+        {
+            "run_id": run_id,
+            "log_dir": display_path(run_logs.log_dir),
+            "model": args.model,
+            "reasoning_effort": args.reasoning_effort,
+        },
+    )
+
+    os.environ.setdefault("RUST_LOG", "codex_core=info,codex_rmcp_client=info")
+    os.environ.setdefault("RUST_BACKTRACE", "1")
 
     print("[orchestrator] Starting orchestrator, attempting to load API key...", file=sys.stderr)
     api_key = load_api_key(config.get("CREDENTIAL_PATH", ""))
@@ -471,16 +667,44 @@ async def main() -> None:
         else output_dir / "prompt_template.txt"
     )
 
+    (run_logs.log_dir / "run_config.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "input_path": display_path(input_path),
+                "input_template_path": display_path(input_template_path),
+                "base_template_path": display_path(base_template_path),
+                "output_dir": display_path(output_dir),
+                "todo_path": display_path(todo_path),
+                "results_path": display_path(results_path),
+                "prompt_template_path": display_path(prompt_template_path),
+                "model": args.model,
+                "reasoning_effort": args.reasoning_effort,
+                "max_scenarios": args.max_scenarios,
+                "overwrite": args.overwrite,
+                "log_dir": display_path(run_logs.log_dir),
+            },
+            indent=2,
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
     scenarios = parse_scenarios(input_path)
     prepare_output_dir(output_dir)
     write_todo_list(scenarios, todo_path)
     write_manifest(scenarios, output_dir, input_path, output_dir / "scenario_manifest.json")
 
     codex_args = build_codex_args(args.model, args.reasoning_effort)
+    run_logs.log_event(
+        "codex_mcp_command",
+        {"command": ["npx", *codex_args]},
+    )
     print("[orchestrator] Connecting to Codex MCP...", file=sys.stderr)
     async with MCPServerStdio(
         name="Codex CLI",
-        params={"command": "npx", "args": codex_args},
+        params=build_mcp_server_params(codex_args, run_logs.log_dir),
         client_session_timeout_seconds=360000,
     ) as codex_mcp:
         print("[orchestrator] Successfully connected to Codex MCP.", file=sys.stderr)
@@ -510,10 +734,15 @@ async def main() -> None:
         base_template = resolve_base_template(base_template_path)
         input_template = resolve_input_template(input_template_path, base_template)
         prompt_template = await build_prompt_template(
-            scheduler, input_template, prompt_template_path
+            scheduler, input_template, prompt_template_path, run_logs
         )
         await calibrate_executor(
-            scenarios[0], output_dir, prompt_template, executor, args.overwrite
+            scenarios[0],
+            output_dir,
+            prompt_template,
+            executor,
+            args.overwrite,
+            run_logs,
         )
         await run_executor(
             scenarios,
@@ -522,9 +751,11 @@ async def main() -> None:
             executor,
             args.overwrite,
             args.max_scenarios,
+            run_logs,
         )
 
     aggregate_outputs(scenarios, output_dir, results_path)
+    run_logs.log_event("run_complete", {"run_id": run_id})
 
 
 if __name__ == "__main__":

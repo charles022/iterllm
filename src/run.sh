@@ -9,6 +9,7 @@
 #   --input-template <path>   Path to alternate editable prompt template
 #   --base-template <path>    Path to baseline prompt template
 #   --output-dir <path>       Directory for scenario outputs (default: outputs/)
+#   --log-dir <path>          Directory for run logs (default: logs/run-<timestamp>)
 #   --max-scenarios <n>       Limit run to first N scenarios
 #   --overwrite               Regenerate existing outputs
 #   --reasoning-effort <lvl>  Reasoning level: minimal|low|medium|high (for GPT-5/o-series)
