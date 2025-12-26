@@ -5,13 +5,19 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=chuck
-Group=chuck
+DynamicUser=yes
 WorkingDirectory=/home/chuck/code/interllm
 LoadCredentialEncrypted=codex_key:/etc/credstore.encrypted/codex_key
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/bash /home/chuck/code/interllm/src/run.sh
 RemainAfterExit=no
+
+# Hardening / Sandboxing
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+BindPaths=/home/chuck/code/interllm
+Environment=HOME=/tmp
 
 [Install]
 WantedBy=multi-user.target
