@@ -1,0 +1,4 @@
+identify 3 potential next steps for this project. write these next steps to a file titled next_steps.txt, where the file contains only these three steps, each on its own new line. the format of the file should be simple and allow for a program to later read back each step by reading the file and splitting the lines such that each line will be treated as a new step. The file should contain nothing else."
+
+
+

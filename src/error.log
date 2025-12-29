@@ -1,0 +1,100 @@
+[2025-12-29T01:06:11.908624018+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2025-12-29T01:06:11.926592757+00:00] auth: mode=ChatGPT account_id=eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:06:11.926628647+00:00] auth: set ChatGPT-Account-Id header: eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:06:11.930035851+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.77.0 (Fedora 42.0.0; x86_64) alacritty (codex_cloud_tasks_tui)
+[2025-12-29T01:06:11.967273605+00:00] env: git origins: []
+[2025-12-29T01:06:11.967359099+00:00] env: GET https://chatgpt.com/backend-api/wham/environments
+[2025-12-29T01:06:13.065546932+00:00] env: status=200 OK content-type=application/json
+[2025-12-29T01:06:13.065814069+00:00] env: status=200 OK content-type=application/json
+[2025-12-29T01:06:13.066266173+00:00] env: /environments JSON (pretty):
+[
+  {
+    "id": "6951ca00cea081918827c8130f2e69d4",
+    "machine_id": "wham-public/wham-universal",
+    "label": "charles022/sample_project",
+    "is_pinned": false,
+    "description": "",
+    "workspace_dir": "/workspace",
+    "agent_network_access": {
+      "mode": "on",
+      "preset_allowlist": "codex",
+      "allowlist_domains": null,
+      "safe_methods_only": null
+    },
+    "repos": [
+      "github-1124395376"
+    ],
+    "setup": "",
+    "maintenance_setup": "",
+    "repo_map": {
+      "github-1124395376": {
+        "id": "1124395376",
+        "name": "sample_project",
+        "owner": {
+          "login": "charles022",
+          "id": 37111957,
+          "type": "User",
+          "avatar_url": "https://avatars.githubusercontent.com/u/37111957?v=4",
+          "url": "https://api.github.com/users/charles022"
+        },
+        "repository_full_name": "charles022/sample_project",
+        "clone_url": "https://github.com/charles022/sample_project.git",
+        "default_branch": "main",
+        "git_commits_url": "https://api.github.com/repos/charles022/sample_project/git/commits{/sha}",
+        "git_refs_url": "https://api.github.com/repos/charles022/sample_project/git/refs{/sha}",
+        "git_url": "git://github.com/charles022/sample_project.git",
+        "visibility": "public",
+        "allow_auto_merge": false,
+        "allow_merge_commit": true,
+        "allow_rebase_merge": true,
+        "allow_squash_merge": true,
+        "allow_update_branch": false,
+        "language": null,
+        "size": 0,
+        "master_branch": null,
+        "permissions": {
+          "admin": true,
+          "push": true,
+          "pull": true
+        }
+      }
+    },
+    "env_vars": {},
+    "secrets": {},
+    "secrets_with_domains": null,
+    "task_count": 1,
+    "creator_id": "user-qH8uaUSaerBe1acTXZd5OK46",
+    "share_settings": "workspace",
+    "share_targets": [],
+    "permissions": {
+      "can_write": true,
+      "can_delete": true
+    },
+    "created_at": 1766967808.807629,
+    "auto_setup_settings": {
+      "use_auto_setup": true
+    },
+    "cache_settings": {
+      "post_setup_cache_enabled": true,
+      "cache_invalidation_key": ""
+    },
+    "etag": "\"df02a829-0000-0200-0000-6951cea50000\"",
+    "enable_authtranslator": false
+  }
+]
+[2025-12-29T01:06:13.066358463+00:00] env: single environment available; selecting it
+[2025-12-29T01:06:13.066439346+00:00] env.select: autodetected id=6951ca00cea081918827c8130f2e69d4 label=charles022/sample_project
+[2025-12-29T01:06:13.067013007+00:00] http.list_tasks: env=<all> items=15
+[2025-12-29T01:06:13.067092684+00:00] refresh.drop: env=<all> current=6951ca00cea081918827c8130f2e69d4
+[2025-12-29T01:06:13.712503057+00:00] http.list_tasks: env=6951ca00cea081918827c8130f2e69d4 items=15
+[2025-12-29T01:06:13.712630188+00:00] refresh.apply: env=6951ca00cea081918827c8130f2e69d4 count=13
+[2025-12-29T01:06:13.741293061+00:00] env: status=200 OK content-type=application/json
+[2025-12-29T01:07:59.068184582+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2025-12-29T01:07:59.084655955+00:00] auth: mode=ChatGPT account_id=eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:07:59.084726290+00:00] auth: set ChatGPT-Account-Id header: eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:13:14.261445743+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2025-12-29T01:13:14.278473667+00:00] auth: mode=ChatGPT account_id=eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:13:14.278509636+00:00] auth: set ChatGPT-Account-Id header: eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:13:15.778171889+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2025-12-29T01:13:15.795072031+00:00] auth: mode=ChatGPT account_id=eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
+[2025-12-29T01:13:15.795105041+00:00] auth: set ChatGPT-Account-Id header: eedd67ce-b7a2-40e7-8972-861e5ec1fd5a
