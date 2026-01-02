@@ -1,0 +1,24 @@
+In 2025, the combination of
+DynamicUser=yes and PrivateMounts=yes provides a defense-in-depth approach that isolates API keys at both the file system and user levels.
+When to use DynamicUser=yes
+This setting is recommended for any service that does not require persistent file ownership (like a web server or worker daemon).
+How it works: systemd allocates a temporary User ID (UID) from a specific range (typically 61184–65519) when the service starts and discards it when it stops.
+Security Benefit: If you log into the machine as a standard user (e.g., www-data or ubuntu), you cannot read the secret because you do not share the same UID as the service. Since the service's UID is unique and temporary, no other session or process on the system can match it.
+Why use it: It prevents "sideways" access where one compromised service under a common user (like www-data) could read secrets belonging to another.
+When NOT to use DynamicUser=yes
+You should avoid this setting if your application needs to own persistent files on disk between restarts (e.g., a database like PostgreSQL).
+The Conflict: Because the UID changes every time the service starts, files created during one run may not be accessible in the next without complex state management.
+The Alternative: Use a static system user (e.g., User=myapp) but combine it with PrivateMounts=yes.
+The Role of PrivateMounts=yes (Mount Namespacing)
+Even if you cannot use DynamicUser, you should almost always use PrivateMounts=yes for secrets.
+The "Invisible" Path: When PrivateMounts=yes is active, systemd creates a private mount namespace for that process. It mounts the decrypted secrets into a unique path (like /run/credentials/myapp.service/) that exists only within that namespace.
+Isolation in Action:
+Process A (The Service): Can see and read /run/credentials/myapp.service/api_key.
+Process B (Same User, different session): If you run a second process as the same user from a shell, it has its own view of the file system. In its view, the directory /run/credentials/myapp.service/ simply does not exist or is empty.
+Protection Level: This stops other programs run by the same user from "finding" the key, even if they have the correct permissions to read it.
+Summary Table: Isolation Scenarios
+Configuration
+Threat: User Login Threat: Other App (Same UID) Threat: Compromised Sub-process
+User=static Vulnerable: Key path is visible to you. Vulnerable: Key path is visible. Vulnerable: Inherits file access.
+User=static + PrivateMounts Safe: Key path is invisible to your shell. Safe: Path is invisible to other apps. Vulnerable: Sub-process is inside the namespace.
+DynamicUser + PrivateMounts Best: No path access + UID mismatch. Best: No path access + UID mismatch. Best: systemd-creds are NOT inherited by child processes.

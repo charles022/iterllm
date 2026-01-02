@@ -1,0 +1,19 @@
+In 2025, the answer is
+No, a different session with the same user cannot read that file if PrivateMounts=yes is enabled, because the file path effectively does not exist in their session.
+While they share the same User ID (UID), they do not share the same Mount Namespace. Here is the breakdown of why this works:
+1. The Invisible Path (Mount Namespacing)
+When PrivateMounts=yes is active, systemd creates a unique view of the filesystem for that service.
+The Service Session: systemd mounts the decrypted credential into /run/credentials/myapp.service/ inside the service's private namespace.
+The User Session (SSH/Shell): When you log in via SSH as the same user, you are placed in the host's default mount namespace. Even if you know the exact path and use cat /run/credentials/myapp.service/api_key, the shell will return a No such file or directory error.
+2. The Credential Directory is Ephemeral
+The /run/credentials/ directory is not a standard persistent folder on your disk. It is a temporary ramfs or tmpfs structure. systemd only performs the "bind mount" that makes the secret visible into that specific directory for the processes it manages under that unit.
+3. Why DynamicUser=yes is Still Recommended
+If PrivateMounts=yes is so effective, why use DynamicUser=yes?
+Memory/Process Attacks: If a different program running under the same static user (e.g., www-data) is compromised, an attacker could theoretically use nsenter or similar tools to "join" the service's namespace if they have enough privileges.
+UID Isolation: DynamicUser=yes ensures that even if an attacker manages to break into the service's namespace, the User ID of the service doesn't match any other user on the system, providing a secondary layer of "Permission Denied" protections.
+Summary of "Same-User" Session Visibility
+Configuration
+Service can see key? Shell (Same User) can see key? Reason
+Default Yes Yes Path is globally visible in /run.
+PrivateMounts=yes Yes No Namespace Isolation: Path doesn't exist in the shell's view.
+DynamicUser=yes Yes No UID Isolation: Shell user isn't the same as the temporary service user.

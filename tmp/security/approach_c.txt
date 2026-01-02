@@ -1,0 +1,42 @@
+In 2025,
+systemd-creds is the standard for managing "last-mile" secrets on Linux. It allows you to encrypt API keys so they are only decryptable by the specific hardware and OS they were intended for, then injects them directly into a service's memory space at runtime.
+1. How It Works
+systemd-creds uses a tiered encryption model to protect your data at rest:
+TPM2 Binding: If your system has a TPM2 chip, the secret is bound to the hardware. It cannot be decrypted if the hard drive is moved to another machine.
+Host Key: A local random key stored in /var/lib/systemd/credential.secret (accessible only by root).
+Combined (Default): By default, it requires both the hardware TPM and the local host key to unlock the secret.
+2. Implementation Guide
+To store an API key for a service named myapp:
+Step 1: Encrypt the Key
+Use the encrypt command. You can pass the secret via a file or standard input.
+bash
+# Encrypt from a file and bind it to the local machine's TPM
+sudo systemd-creds encrypt --name=api_key plaintext_api_key.txt api_key.cred
+Use code with caution.
+Note: Using --name embeds the intended name into the encrypted file, preventing it from being accidentally swapped with another secret.
+Step 2: Update the Service File
+In your myapp.service file, use LoadCredentialEncrypted to point to the file.
+ini
+[Service]
+ExecStart=/usr/bin/python3 /opt/myapp/main.py
+# Format: :
+LoadCredentialEncrypted=api_key:/etc/myapp/api_key.cred
+Use code with caution.
+3. Programmatic Access
+Inside your program, the API key is not an environment variable (which is less secure). Instead, it appears as a temporary, read-only file that only your service's user can see.
+The path is always $CREDENTIALS_DIRECTORY/.
+Python Example:
+python
+import os
+# Get the base directory from the environment variable systemd sets
+creds_dir = os.environ.get("CREDENTIALS_DIRECTORY")
+if creds_dir:
+with open(os.path.join(creds_dir, "api_key"), "r") as f:
+api_key = f.read().strip()
+print(f"Loaded API key safely: {api_key}")
+Use code with caution.
+4. Key Security Advantages
+Anti-Propagation: Unlike environment variables, credentials do not automatically propagate to child processes.
+Non-Swappable Memory: Decrypted secrets are placed in ramfs, meaning they are never written to the swap partition on disk.
+Namespacing: If your service uses PrivateMounts=true, the secret directory is invisible to all other services and users on the system.
+Auditability: Because systemd manages the decryption at the moment of service start, every access is tied to the system logs.
