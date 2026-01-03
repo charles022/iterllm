@@ -1,0 +1,103 @@
+
+# key moments.....
+# ./iterllm-v3/src/build_image.sh
+# sucessfully pulled/built fedora:latest
+# then...
+
+# container dnf update finishing...
+[121/121] Removing libgcc-0:15.2.1-4.fc43.x86_6 100% | 115.0   B/s |  11.0   B |  00m00s
+Complete!
+Removed 18 files, 11 directories (total of 86 MiB). 0 errors occurred.
+
+# next...
+Getting image source signatures
+Copying blob 516b47e1f451 skipped: already exists
+Getting image source signatures
+Copying blob 516b47e1f451 skipped: already exists
+Copying blob 469c764197cd done   |
+Copying config 2d5d0fde42 done   |
+Writing manifest to image destination
+Building Runtime Image using Dev container tooling...
+2cc29b24233fe05ea8b13d61ebf9bccd27dab7888e71633450e3082034533a06
+Updating and loading repositories:
+Repositories loaded.
+
+# ! issue !
+Failed to resolve the transaction:
+No match for argument: bash
+No match for argument: coreutils
+No match for argument: glibc
+No repositories were loaded from the installroot. To use the configuration and repositories of the host system, pass --use-host-config.
+
+
+
+# full abbreviated log
+[chuck@7510 iterllm-v3 | 1767470957 | 22.14]$ cd src
+[chuck@7510 src | 1767470957 | 26.57]$ ./build_image.sh
+Cleaning up old build artifacts...
+de280541c01e77ddd2fca0ca8d15844b9fb07b5bf344aa89f96537d0c7d05c18
+58ec496a9c5629eea0f2536736079aa6805f1e1d2633c2d0a0e4d2fc8aad0d93
+untagged: localhost/src-dev-image:latest
+74601f7b959335224d6630d8d0b45639d5d359d89fb303da680dc45dec10e486
+Building Dev Image...
+Updating and loading repositories:
+ Fedora 43 openh264 (From Cisco) - x86_64       100% | 206.0   B/s |   5.8 KiB |  00m29s
+ Fedora 43 - x86_64 - Updates                   100% | 149.2 KiB/s |   8.4 MiB |  00m58s
+ Fedora 43 - x86_64                             100% | 123.4 KiB/s |  35.4 MiB |  04m54s
+>>> Curl error (35): SSL connect error for https://mirrors.fedoraproject.org/metalink?re
+Repositories loaded.
+Package "bash-5.3.0-2.fc43.x86_64" is already installed.
+Package "coreutils-9.7-6.fc43.x86_64" is already installed.
+
+Package                             Arch   Version                   Repositor      Size
+Upgrading:
+ glibc                              x86_64 2.42-5.fc43               updates     6.7 MiB
+   replacing glibc                  x86_64 2.42-4.fc43               a988fc35f   6.7 MiB
+ glibc-common                       x86_64 2.42-5.fc43               updates     1.0 MiB
+   replacing glibc-common           x86_64 2.42-4.fc43               a988fc35f   1.0 MiB
+ 
+# .........
+
+
+ rust-std-static                    x86_64 1.92.0-1.fc43             updates   165.6 MiB
+ util-linux                         x86_64 2.41.3-7.fc43             updates     3.5 MiB
+Installing weak dependencies:
+ perl-NDBM_File                     x86_64 1.18-520.fc43             fedora     28.5 KiB
+
+Transaction Summary:
+ Installing:        99 packages
+ Upgrading:         10 packages
+ Replacing:         10 packages
+
+Total size of inbound packages is 199 MiB. Need to download 199 MiB.
+After this operation, 690 MiB extra will be used (install 701 MiB, remove 11 MiB).
+[  1/109] cargo-0:1.92.0-1.fc43.x86_64          100% | 257.1 KiB/s |   7.6 MiB |  00m30s
+[  2/109] libssh2-0:1.11.1-4.fc43.x86_64        100% | 143.5 KiB/s | 143.0 KiB |  00m01s
+[  3/109] git-0:2.52.0-1.fc43.x86_64            100% |  97.8 KiB/s |  41.0 KiB |  00m00s
+[  4/109] git-core-0:2.52.0-1.fc43.x86_64       100% | 204.8 KiB/s |   5.2 MiB |  00m26s
+[  5/109] git-core-doc-0:2.52.0-1.fc43.noarch   100% | 203.8 KiB/s |   3.1 MiB |  00m15s
+
+# .........
+
+[119/121] Removing glibc-minimal-langpack-0:2.4 100% |  10.9 KiB/s | 100.0   B |  00m00s
+[120/121] Removing glibc-common-0:2.42-4.fc43.x 100% |   4.3 KiB/s |  53.0   B |  00m00s
+[121/121] Removing libgcc-0:15.2.1-4.fc43.x86_6 100% | 115.0   B/s |  11.0   B |  00m00s
+Complete!
+Removed 18 files, 11 directories (total of 86 MiB). 0 errors occurred.
+Getting image source signatures
+Copying blob 516b47e1f451 skipped: already exists
+Copying blob 469c764197cd done   |
+Copying config 2d5d0fde42 done   |
+Writing manifest to image destination
+Building Runtime Image using Dev container tooling...
+2cc29b24233fe05ea8b13d61ebf9bccd27dab7888e71633450e3082034533a06
+Updating and loading repositories:
+Repositories loaded.
+Failed to resolve the transaction:
+No match for argument: bash
+No match for argument: coreutils
+No match for argument: glibc
+No repositories were loaded from the installroot. To use the configuration and repositories of the host system, pass --use-host-config.
+Error: while running runtime: exit status 1
+[chuck@7510 src | 1767470957 | 714.04]$
+
