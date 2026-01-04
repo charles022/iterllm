@@ -43,8 +43,6 @@ if podman image exists "$RUNTIME_IMAGE"; then
 fi
 
 
-
-
 # --- build dev image ---
 # pull/run fedora:latest container, base of dev image
 # name it this way with "$DEV_CONTAINER" so that we can access it
@@ -75,13 +73,113 @@ buildah commit "$DEV_CONTAINER" "$DEV_IMAGE"
 #   use -t for interactive
 # ... possibly add to build_runtime_image.sh: 
 # --setopt=install_weak_deps=False \
-# coreutils glibc
+# recommended, install to runtime: coreutils glibc
+
+RUNTIME_ARCHIVE="${RUNTIME_IMAGE}.oci-archive"
+ARCHIVE_PATH="$(pwd)/${RUNTIME_ARCHIVE}"
+rm -f "$ARCHIVE_PATH"
+trap 'rm -f "$ARCHIVE_PATH"' EXIT
+
 buildah run \
     --device /dev/fuse \
     --cap-add=CAP_SYS_ADMIN \
     -v "$(pwd)":/hostmount:Z \
-    "$DEV_CONTAINER" -- /bin/bash /hostmount/build_runtime_image.sh
+    "$DEV_CONTAINER" -- /bin/bash /hostmount/build_runtime_image.sh "$RUNTIME_ARCHIVE"
 
+echo "back in the build_image_v4.sh script. just successfully ran the build_runtime_image.sh script from the dev container"
+
+
+# use buildah pull to import the tarball into local containers‑storage
+# use buildah tag to make it accessible using typical naming conventions, not id number
+# buildah pull:
+# - Extracts the archive (.tar)
+# - Stores the image layers in local storage
+# - Registers the image metadata
+# - Creates/stores an image object in local container storage
+# - if run as non-root user, image is stored in $HOME/.local/share/containers/storage/
+# - returns the image-id
+# buildah tag:
+# - takes the image-id (returned from 'buildah pull') and makes it accessible
+#   through conventional naming
+image_id=$(buildah pull "oci-archive:$RUNTIME_ARCHIVE")
+buildah tag "$image_id" "$RUNTIME_IMAGE:latest"
+
+
+
+echo "about to test the runtime image non-interactively"
+podman run --rm "$RUNTIME_IMAGE:latest" /bin/echo "runtime container works"
+
+
+
+#
+# FIFO_NAME="${RUNTIME_IMAGE}-fifo"
+# FIFO="$(pwd)/${FIFO_NAME}"
+# rm -f "$FIFO"
+# mkfifo "$FIFO"
+# trap 'rm -f "$FIFO"' EXIT
+# 
+# # run dev container to build runtime-container
+# buildah run \
+#     --device /dev/fuse \
+#     --cap-add=CAP_SYS_ADMIN \
+#     -v "$(pwd)":/hostmount:Z \
+#     "$DEV_CONTAINER" -- /bin/bash /hostmount/build_runtime_image.sh "$FIFO_NAME" &
+# BUILD_PID=$!
+# 
+# pulled_image=$(buildah pull "oci-archive:${FIFO}")
+# wait "$BUILD_PID"
+# 
+# buildah tag "$pulled_image" "$RUNTIME_IMAGE"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# FIFO="$(pwd)/$RUNTIME_IMAGE-fifo"
+# mkfifo "$FIFO"
+# trap 'rm -f "$FIFO"' EXIT
+# 
+# buildah pull "oci-archive:${FIFO}" &
+# PULL_PID=$!
+# 
+# buildah run \
+#     --device /dev/fuse \
+#     --cap-add=CAP_SYS_ADMIN \
+#     -v "$(pwd)":/hostmount:Z \
+#     "$DEV_CONTAINER" -- /bin/bash /hostmount/build_runtime_image.sh /hostmount/image_fifo "$RUNTIME_IMAGE"
+# 
+# wait $PULL_PID
+
+# insert logic along the lines of: buildah commit <container> myimage:latest
+
+
+
+
+# # suggested:
+# 
+# # ./build_runtime_image.sh
+# RUNTIME_IMAGE="..."
+# buildah commit "$newcontainer" "$RUNTIME_IMAGE" # runtime-image
+# # buildah push runtime-image oci-archive:/hostmount/${PROJECT:-runtime}-image.tar
+# buildah push $"RUNTIME_IMAGE" oci-archive:/hostmount/${PROJECT:-runtime}-image.tar
+# 
+# And add a final step to build_image_v4.sh to auto-import:
+# 
+# # After the buildah run command completes:
+# # buildah pull oci-archive:./runtime-image.tar "$RUNTIME_IMAGE"
+# buildah pull oci-archive:./"$RUNTIME_IMAGE".tar "$RUNTIME_IMAGE"
+# echo "Runtime image available as: $RUNTIME_IMAGE"
 
 
 
