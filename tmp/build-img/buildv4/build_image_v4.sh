@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -eou pipefail
 
 # use 'ssh style' notation... <machine>:<path on machine>
 #

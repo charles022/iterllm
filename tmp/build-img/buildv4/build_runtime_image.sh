@@ -11,6 +11,7 @@ mnt=$(buildah mount "$newcontainer")
 echo "using dnf to install to mounted runtime/scratch-container from inside the dev-container..."
 dnf install -y \
     --installroot "$mnt" \
+    --use-host-config \
     --nodocs \
     bash
 dnf clean all --installroot "$mnt"
