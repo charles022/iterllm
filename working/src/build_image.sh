@@ -3,8 +3,12 @@
 set -eou pipefail
 
 REPO=$(basename "$(git rev-parse --show-toplevel)")
-BRANCH=$(git branch --show-current) # alternate: BRANCH=$(git rev-parse --abbrev-ref HEAD)
-PROJECT="$REPO-$BRANCH" # old: PROJECT=$(basename "$PWD")
+BRANCH_RAW="$(git branch --show-current 2>/dev/null || true)"
+if [[ -z "$BRANCH_RAW" ]]; then
+    BRANCH_RAW="$(git rev-parse --abbrev-ref HEAD)"
+fi
+BRANCH_SAFE="$(printf '%s' "$BRANCH_RAW" | LC_ALL=C tr '/ ' '--')"
+PROJECT="$REPO-$BRANCH_SAFE" # old: PROJECT=$(basename "$PWD")
 DEV_IMAGE="${PROJECT}-dev-image"
 DEV_CONTAINER="${PROJECT}-dev-container"
 RUNTIME_IMAGE="${PROJECT}-runtime-image"
@@ -12,9 +16,11 @@ RUNTIME_CONTAINER="${PROJECT}-runtime-container"
 HOSTMOUNT="/hostmount"
 
 skip_rebuild=false
+copy_system=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip_rebuild)      skip_rebuild=true ;;
+        --copy-system)       copy_system=true ;;
         *)                   echo "Unknown option: $1" >&2; exit 1 ;;
     esac
     shift
@@ -65,8 +71,10 @@ buildah tag "$image_id" "$RUNTIME_IMAGE:latest"
 # test
 podman run --rm "$RUNTIME_IMAGE:latest" /bin/bash -c 'echo "runtime container works"'
 
-# Copy to system storage for systemd service usage
-echo "Copying image to system-wide storage (requires sudo)..."
-sys_image_id=$(sudo buildah pull "oci-archive:$ARCHIVE_PATH")
-sudo buildah tag "$sys_image_id" "$RUNTIME_IMAGE:latest"
-echo "Image available in system storage as $RUNTIME_IMAGE:latest"
+if $copy_system; then
+    # Copy to system storage for systemd service usage
+    echo "Copying image to system-wide storage (requires sudo)..."
+    sys_image_id=$(sudo buildah pull "oci-archive:$ARCHIVE_PATH")
+    sudo buildah tag "$sys_image_id" "$RUNTIME_IMAGE:latest"
+    echo "Image available in system storage as $RUNTIME_IMAGE:latest"
+fi

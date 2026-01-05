@@ -3,19 +3,25 @@ Description=IterLLM Runtime Service
 After=network-online.target
 
 [Service]
-EnvironmentFile=/etc/iterllm/%p.env
+EnvironmentFile=%h/.config/iterllm/%p.env
 
 # --- Security & Isolation ---
 Type=exec
-DynamicUser=yes
 PrivateMounts=yes
-ProtectSystem=strict
-ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=full
 NoNewPrivileges=yes
+Delegate=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
 
 # --- Credentials ---
-# Decrypts $CRED_SOURCE -> $CREDENTIALS_DIRECTORY/$CRED_NAME
-LoadCredentialEncrypted=$CRED_NAME:$CRED_SOURCE
+# Decrypts %h/.config/credstore.encrypted/my_api_key -> $CREDENTIALS_DIRECTORY/my_api_key
+LoadCredentialEncrypted=my_api_key:%h/.config/credstore.encrypted/my_api_key
 
 # --- Container Execution ---
 # We run bash via /bin/sh to expand $CREDENTIALS_DIRECTORY before calling podman
@@ -35,4 +41,4 @@ ExecStop=/usr/bin/podman stop --ignore --time 10 $SERVICE_NAME
 ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

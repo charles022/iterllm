@@ -5,15 +5,21 @@ set -eou pipefail
 # --- Configuration ---
 # Match naming logic from build_image.sh
 REPO=$(basename "$(git rev-parse --show-toplevel)")
-BRANCH=$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD)
-PROJECT="$REPO-$BRANCH"
+BRANCH_RAW="$(git branch --show-current 2>/dev/null || true)"
+if [[ -z "$BRANCH_RAW" ]]; then
+    BRANCH_RAW="$(git rev-parse --abbrev-ref HEAD)"
+fi
+BRANCH_SAFE="$(printf '%s' "$BRANCH_RAW" | LC_ALL=C tr '/ ' '--')"
+PROJECT="$REPO-$BRANCH_SAFE"
 RUNTIME_IMAGE="${PROJECT}-runtime-image"
 
 SERVICE_NAME="${PROJECT}-service"
 CRED_NAME="my_api_key"
-CRED_SOURCE="/etc/credstore.encrypted/${CRED_NAME}"
-UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-ENV_DIR="/etc/iterllm"
+CONFIG_HOME="$HOME/.config"
+CRED_SOURCE="${CONFIG_HOME}/credstore.encrypted/${CRED_NAME}"
+UNIT_DIR="${CONFIG_HOME}/systemd/user"
+UNIT_FILE="${UNIT_DIR}/${SERVICE_NAME}.service"
+ENV_DIR="${CONFIG_HOME}/iterllm"
 ENV_FILE="${ENV_DIR}/${SERVICE_NAME}.env"
 
 # --- Checks ---
@@ -23,13 +29,13 @@ if ! command -v podman &> /dev/null; then
 fi
 
 echo "Checking for runtime image: ${RUNTIME_IMAGE}..."
-if ! sudo podman image exists "${RUNTIME_IMAGE}:latest"; then
-    echo "Error: Image ${RUNTIME_IMAGE}:latest not found in root store. Please run src/build_image.sh with sudo or push to a shared registry."
+if ! podman image exists "${RUNTIME_IMAGE}:latest"; then
+    echo "Error: Image ${RUNTIME_IMAGE}:latest not found in user store. Please run src/build_image.sh."
     exit 1
 fi
 
 echo "Checking for encrypted credential: ${CRED_SOURCE}..."
-if ! sudo test -f "$CRED_SOURCE"; then
+if ! test -f "$CRED_SOURCE"; then
     echo "Warning: Credential file $CRED_SOURCE does not exist or is not readable."
     echo "Please create it using 'systemd-creds encrypt' as per docs/secure_key_sop.md"
     echo "The service will likely fail to start without it."
@@ -45,7 +51,7 @@ echo "Writing environment file at ${ENV_FILE}..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-sudo install -d -m 0755 "$ENV_DIR"
+install -d -m 0755 "$ENV_DIR"
 tmp_env="$(mktemp)"
 cat > "$tmp_env" <<EOF
 PROJECT=${PROJECT}
@@ -54,16 +60,17 @@ CRED_NAME=${CRED_NAME}
 CRED_SOURCE=${CRED_SOURCE}
 RUNTIME_IMAGE=${RUNTIME_IMAGE}
 EOF
-sudo install -m 0640 "$tmp_env" "$ENV_FILE"
+install -m 0640 "$tmp_env" "$ENV_FILE"
 rm -f "$tmp_env"
 
 echo "Installing systemd unit at ${UNIT_FILE}..."
-sudo install -m 0644 "${SCRIPT_DIR}/iterllm.service.template" "$UNIT_FILE"
+install -d -m 0755 "$UNIT_DIR"
+install -m 0644 "${SCRIPT_DIR}/iterllm.service.template" "$UNIT_FILE"
 
 # --- Enable & Start ---
-echo "Reloading systemd..."
-sudo systemctl daemon-reload
+echo "Reloading user systemd..."
+systemctl --user daemon-reload
 
 echo "Enabling and starting service ${SERVICE_NAME}..."
-sudo systemctl enable "${SERVICE_NAME}"
-sudo systemctl restart "${SERVICE_NAME}"
+systemctl --user enable "${SERVICE_NAME}"
+systemctl --user restart "${SERVICE_NAME}"
