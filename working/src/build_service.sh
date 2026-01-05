@@ -14,9 +14,8 @@ PROJECT="$REPO-$BRANCH_SAFE"
 RUNTIME_IMAGE="${PROJECT}-runtime-image"
 
 SERVICE_NAME="${PROJECT}-service"
-CRED_NAME="my_api_key"
 CONFIG_HOME="$HOME/.config"
-CRED_SOURCE="${CONFIG_HOME}/credstore.encrypted/${CRED_NAME}"
+CRED_SOURCE="${CONFIG_HOME}/credstore.encrypted/my_api_key"
 UNIT_DIR="${CONFIG_HOME}/systemd/user"
 UNIT_FILE="${UNIT_DIR}/${SERVICE_NAME}.service"
 ENV_DIR="${CONFIG_HOME}/iterllm"
@@ -56,8 +55,6 @@ tmp_env="$(mktemp)"
 cat > "$tmp_env" <<EOF
 PROJECT=${PROJECT}
 SERVICE_NAME=${SERVICE_NAME}
-CRED_NAME=${CRED_NAME}
-CRED_SOURCE=${CRED_SOURCE}
 RUNTIME_IMAGE=${RUNTIME_IMAGE}
 EOF
 install -m 0640 "$tmp_env" "$ENV_FILE"

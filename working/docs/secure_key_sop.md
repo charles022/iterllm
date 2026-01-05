@@ -16,27 +16,26 @@ This approach is designed for maintenance scripts or administrative tools that r
 
 ### Characteristics
 *   **Trigger:** Manual execution by a user.
-*   **Privilege:** Requires `sudo` to decrypt the key.
+*   **Privilege:** No `sudo` for the user-scoped store; `sudo` only if using `/etc` for a system service.
 *   **Lifetime:** Key exists in process memory only for the duration of the script.
-*   **Storage:** Encrypted file in `/etc/credstore.encrypted/`.
+*   **Storage:** Encrypted file in `~/.config/credstore.encrypted/` for rootless user services.
 
 ### Setup Procedure
 Store the key encrypted at rest. The filename **must** match the name used in the `--name` flag.
 
 ```bash
 # 1. Create the credential store directory
-sudo mkdir -p /etc/credstore.encrypted
-sudo chmod 0700 /etc/credstore.encrypted
+mkdir -p "$HOME/.config/credstore.encrypted"
+chmod 0700 "$HOME/.config/credstore.encrypted"
 
 # 2. Encrypt the key (interactive input)
 # Note: We use 'my_api_key' as the standard name across all examples.
-sudo systemd-ask-password "Enter API Key:" \
-  | sudo systemd-creds encrypt --name=my_api_key - \
-    /etc/credstore.encrypted/my_api_key
+systemd-ask-password "Enter API Key:" \
+  | systemd-creds encrypt --name=my_api_key - \
+    "$HOME/.config/credstore.encrypted/my_api_key"
 
 # 3. Secure the file
-sudo chmod 0600 /etc/credstore.encrypted/my_api_key
-sudo chown root:root /etc/credstore.encrypted/my_api_key
+chmod 0600 "$HOME/.config/credstore.encrypted/my_api_key"
 ```
 
 ### Access Implementation (Python Example)
@@ -48,8 +47,7 @@ import subprocess
 from pathlib import Path
 from functools import lru_cache
 
-CRED_NAME = "my_api_key"
-CRED_FILE = Path(f"/etc/credstore.encrypted/{CRED_NAME}")
+CRED_FILE = Path.home() / ".config/credstore.encrypted/my_api_key"
 
 def _decrypt_credential(path: Path) -> str:
     # Decrypts the key using systemd-creds. Requires sudo.
@@ -69,7 +67,7 @@ def load_api_key() -> str:
     # 1. Try Standard Service Access (CREDENTIALS_DIRECTORY)
     creds_dir = os.environ.get("CREDENTIALS_DIRECTORY")
     if creds_dir:
-        key_path = Path(creds_dir) / CRED_NAME
+        key_path = Path(creds_dir) / "my_api_key"
         if key_path.exists():
             return key_path.read_text().strip()
 
@@ -95,8 +93,8 @@ if __name__ == "__main__":
 This approach is for standard system services (like a custom web server or background worker) that need to start automatically at boot without user intervention.
 
 ### Characteristics
-*   **Trigger:** System boot or `systemctl start`.
-*   **Privilege:** `sudo` required only for service configuration/control. Runtime decryption is handled by systemd (PID 1).
+*   **Trigger:** User login (or boot with linger) or `systemctl --user start`.
+*   **Privilege:** No `sudo` after the encrypted file is created. Runtime decryption is handled by systemd.
 *   **Lifetime:** Key is available as a read-only file in a temporary file system (`ramfs`) while the service is running.
 *   **Isolation:** Uses `PrivateMounts=yes` to hide the key from other processes.
 
@@ -104,12 +102,12 @@ This approach is for standard system services (like a custom web server or backg
 (Refer to the "Setup Procedure" in Section 1 to create and encrypt the `my_api_key` credential.)
 
 ### Service Configuration
-Edit the systemd unit file (e.g., `/etc/systemd/system/my_service.service`).
+Edit the user unit file (e.g., `~/.config/systemd/user/my_service.service`).
 
 ```ini
 [Service]
 # Point to the encrypted credential file
-LoadCredentialEncrypted=my_api_key:/etc/credstore.encrypted/my_api_key
+LoadCredentialEncrypted=my_api_key:%h/.config/credstore.encrypted/my_api_key
 
 # Application binary
 ExecStart=/usr/bin/python3 /opt/my_service/main.py
@@ -128,6 +126,8 @@ With `PrivateMounts=yes`, the `$CREDENTIALS_DIRECTORY` is visible **only** to th
 
 ## 3. Isolated Service Access (DynamicUser)
 
+Note: This is for system services, not rootless user services.
+
 This builds upon the Standard Service Access approach by adding complete user isolation. It is the recommended default for network-facing services that do not need to own persistent files.
 
 ### Characteristics
@@ -136,13 +136,13 @@ This builds upon the Standard Service Access approach by adding complete user is
 *   **Isolation:** Maximum. The service has no permanent identity and cannot access resources owned by other users (including standard users like `ubuntu` or `www-data`).
 
 ### Service Configuration
-Add `DynamicUser=yes` to the unit file.
+Use a system unit file (e.g., `/etc/systemd/system/my_service.service`) and the system credential store.
 
 ```ini
 [Service]
-# ... (Include all configuration from Section 2) ...
-
-# Enable Dynamic User
+LoadCredentialEncrypted=my_api_key:/etc/credstore.encrypted/my_api_key
+ExecStart=/usr/bin/python3 /opt/my_service/main.py
+PrivateMounts=yes
 DynamicUser=yes
 ```
 
@@ -161,7 +161,7 @@ DynamicUser=yes
 | Feature | Interactive (Approach 1) | Standard Service (Approach 2) | Isolated Service (Approach 3) |
 | :--- | :--- | :--- | :--- |
 | **Primary Use Case** | Admin Scripts / Maintenance | Databases / Stateful Apps | Web Servers / Stateless Apps |
-| **Access Method** | `sudo` + `systemd-creds decrypt` | `LoadCredentialEncrypted` | `LoadCredentialEncrypted` |
+| **Access Method** | `systemd-creds decrypt` | `LoadCredentialEncrypted` | `LoadCredentialEncrypted` |
 | **User Identity** | Calling User (e.g., `chuck`) | Static (e.g., `www-data`) | Ephemeral (e.g., `run-u1234`) |
 | **Filesystem View** | Host default | Private (`PrivateMounts`) | Private (`PrivateMounts`) |
 | **Secrets on Disk** | **Encrypted** | **Encrypted** | **Encrypted** |

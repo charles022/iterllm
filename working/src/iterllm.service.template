@@ -24,17 +24,15 @@ ProtectKernelLogs=yes
 LoadCredentialEncrypted=my_api_key:%h/.config/credstore.encrypted/my_api_key
 
 # --- Container Execution ---
-# We run bash via /bin/sh to expand $CREDENTIALS_DIRECTORY before calling podman
-ExecStart=/bin/sh -c '/usr/bin/podman run \
+ExecStart=/usr/bin/podman run \
     --name $SERVICE_NAME \
     --replace \
     --rm \
     --cgroup-manager=systemd \
     --sdnotify=conmon \
     --network=slirp4netns \
-    -v "$${CREDENTIALS_DIRECTORY}/$CRED_NAME:/run/secrets/$CRED_NAME:ro" \
-    $RUNTIME_IMAGE:latest \
-    /bin/bash -c "echo Service Started; if [ -f /run/secrets/$CRED_NAME ]; then echo Key available at /run/secrets/$CRED_NAME; else echo Key missing; fi; sleep infinity"'
+    -v "$CREDENTIALS_DIRECTORY/my_api_key:/run/secrets/my_api_key:ro" \
+    $RUNTIME_IMAGE:latest
 
 # Cleanup
 ExecStop=/usr/bin/podman stop --ignore --time 10 $SERVICE_NAME

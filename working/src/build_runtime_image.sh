@@ -12,5 +12,5 @@ dnf install -y \
     --nodocs \
     bash
 dnf clean all --installroot "$mnt"
-# buildah config --cmd /bin/bash "$newcontainer"
+buildah config --cmd '["/bin/bash","-c","echo Service Started; if [ -f /run/secrets/my_api_key ]; then echo Key available at /run/secrets/my_api_key; else echo Key missing; fi; sleep infinity"]' "$newcontainer"
 buildah commit "$newcontainer" "oci-archive:${ARCHIVE_PATH}"
