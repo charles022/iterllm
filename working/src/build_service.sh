@@ -13,6 +13,8 @@ SERVICE_NAME="${PROJECT}-service"
 CRED_NAME="my_api_key"
 CRED_SOURCE="/etc/credstore.encrypted/${CRED_NAME}"
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+ENV_DIR="/etc/iterllm"
+ENV_FILE="${ENV_DIR}/${SERVICE_NAME}.env"
 
 # --- Checks ---
 if ! command -v podman &> /dev/null; then
@@ -39,47 +41,24 @@ if ! sudo test -f "$CRED_SOURCE"; then
 fi
 
 # --- Generate Systemd Unit ---
-echo "Generating systemd unit at ${UNIT_FILE}..."
+echo "Writing environment file at ${ENV_FILE}..."
 
-cat <<EOF | sudo tee "$UNIT_FILE" > /dev/null
-[Unit]
-Description=IterLLM Runtime Service (${PROJECT})
-After=network-online.target
-Documentation=https://github.com/iterllm/iterllm-v3
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-[Service]
-# --- Security & Isolation ---
-Type=exec
-DynamicUser=yes
-PrivateMounts=yes
-ProtectSystem=strict
-ProtectHome=yes
-NoNewPrivileges=yes
-
-# --- Credentials ---
-# Decrypts $CRED_SOURCE -> \$CREDENTIALS_DIRECTORY/$CRED_NAME
-LoadCredentialEncrypted=${CRED_NAME}:${CRED_SOURCE}
-
-# --- Container Execution ---
-# We run bash via /bin/sh to expand \$CREDENTIALS_DIRECTORY before calling podman
-ExecStart=/bin/sh -c '/usr/bin/podman run \
-    --name ${SERVICE_NAME} \
-    --replace \
-    --rm \
-    --cgroup-manager=systemd \
-    --sdnotify=conmon \
-    --network=slirp4netns \
-    -v "\${CREDENTIALS_DIRECTORY}/${CRED_NAME}:/run/secrets/${CRED_NAME}:ro" \
-    ${RUNTIME_IMAGE}:latest \
-    /bin/bash -c "echo Service Started; if [ -f /run/secrets/${CRED_NAME} ]; then echo Key available at /run/secrets/${CRED_NAME}; else echo Key missing; fi; sleep infinity"'
-
-# Cleanup
-ExecStop=/usr/bin/podman stop --ignore --time 10 ${SERVICE_NAME}
-ExecStopPost=/usr/bin/podman rm --force --ignore ${SERVICE_NAME}
-
-[Install]
-WantedBy=multi-user.target
+sudo install -d -m 0755 "$ENV_DIR"
+tmp_env="$(mktemp)"
+cat > "$tmp_env" <<EOF
+PROJECT=${PROJECT}
+SERVICE_NAME=${SERVICE_NAME}
+CRED_NAME=${CRED_NAME}
+CRED_SOURCE=${CRED_SOURCE}
+RUNTIME_IMAGE=${RUNTIME_IMAGE}
 EOF
+sudo install -m 0640 "$tmp_env" "$ENV_FILE"
+rm -f "$tmp_env"
+
+echo "Installing systemd unit at ${UNIT_FILE}..."
+sudo install -m 0644 "${SCRIPT_DIR}/iterllm.service.template" "$UNIT_FILE"
 
 # --- Enable & Start ---
 echo "Reloading systemd..."
