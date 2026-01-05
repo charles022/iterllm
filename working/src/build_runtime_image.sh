@@ -12,5 +12,5 @@ dnf install -y \
     --nodocs \
     bash
 dnf clean all --installroot "$mnt"
-buildah config --cmd /bin/bash "$newcontainer"
+# buildah config --cmd /bin/bash "$newcontainer"
 buildah commit "$newcontainer" "oci-archive:${ARCHIVE_PATH}"
