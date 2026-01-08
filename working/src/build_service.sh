@@ -18,8 +18,6 @@ CONFIG_HOME="$HOME/.config"
 CRED_SOURCE="${CONFIG_HOME}/credstore.encrypted/my_api_key"
 UNIT_DIR="${CONFIG_HOME}/systemd/user"
 UNIT_FILE="${UNIT_DIR}/${SERVICE_NAME}.service"
-ENV_DIR="${CONFIG_HOME}/iterllm"
-ENV_FILE="${ENV_DIR}/${SERVICE_NAME}.env"
 
 # --- Checks ---
 if ! command -v podman &> /dev/null; then
@@ -46,23 +44,16 @@ if ! test -f "$CRED_SOURCE"; then
 fi
 
 # --- Generate Systemd Unit ---
-echo "Writing environment file at ${ENV_FILE}..."
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-install -d -m 0755 "$ENV_DIR"
-tmp_env="$(mktemp)"
-cat > "$tmp_env" <<EOF
-PROJECT=${PROJECT}
-SERVICE_NAME=${SERVICE_NAME}
-RUNTIME_IMAGE=${RUNTIME_IMAGE}
-EOF
-install -m 0640 "$tmp_env" "$ENV_FILE"
-rm -f "$tmp_env"
 
 echo "Installing systemd unit at ${UNIT_FILE}..."
 install -d -m 0755 "$UNIT_DIR"
-install -m 0644 "${SCRIPT_DIR}/iterllm.service.template" "$UNIT_FILE"
+
+# Read template, substitute variables, and write to unit file
+sed -e "s|{{SERVICE_NAME}}|${SERVICE_NAME}|g" \
+    -e "s|{{RUNTIME_IMAGE}}|${RUNTIME_IMAGE}|g" \
+    "${SCRIPT_DIR}/iterllm.service.template" > "${UNIT_FILE}"
+chmod 644 "${UNIT_FILE}"
 
 # --- Enable & Start ---
 echo "Reloading user systemd..."

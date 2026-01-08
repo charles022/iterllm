@@ -3,7 +3,7 @@ Description=IterLLM Runtime Service
 After=network-online.target
 
 [Service]
-EnvironmentFile=%h/.config/iterllm/%p.env
+# EnvironmentFile removed - values are baked in at install time
 
 # --- Security & Isolation ---
 Type=exec
@@ -25,18 +25,18 @@ LoadCredentialEncrypted=my_api_key:%h/.config/credstore.encrypted/my_api_key
 
 # --- Container Execution ---
 ExecStart=/usr/bin/podman run \
-    --name $SERVICE_NAME \
+    --name {{SERVICE_NAME}} \
     --replace \
     --rm \
     --cgroup-manager=systemd \
     --sdnotify=conmon \
     --network=slirp4netns \
     -v "$CREDENTIALS_DIRECTORY/my_api_key:/run/secrets/my_api_key:ro" \
-    $RUNTIME_IMAGE:latest
+    {{RUNTIME_IMAGE}}:latest
 
 # Cleanup
-ExecStop=/usr/bin/podman stop --ignore --time 10 $SERVICE_NAME
-ExecStopPost=/usr/bin/podman rm --force --ignore $SERVICE_NAME
+ExecStop=/usr/bin/podman stop --ignore --time 10 {{SERVICE_NAME}}
+ExecStopPost=/usr/bin/podman rm --force --ignore {{SERVICE_NAME}}
 
 [Install]
 WantedBy=default.target
