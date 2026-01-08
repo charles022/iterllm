@@ -11,23 +11,20 @@ if [[ -z "$BRANCH_RAW" ]]; then
 fi
 BRANCH_SAFE="$(printf '%s' "$BRANCH_RAW" | LC_ALL=C tr '/ ' '--')"
 PROJECT="$REPO-$BRANCH_SAFE"
-RUNTIME_IMAGE="${PROJECT}-runtime-image"
 
 SERVICE_NAME="${PROJECT}-service"
+BINARY_PATH_DEFAULT="${HOME}/.local/bin/${PROJECT}"
+BINARY_PATH="${BINARY_PATH:-$BINARY_PATH_DEFAULT}"
 CONFIG_HOME="$HOME/.config"
 CRED_SOURCE="${CONFIG_HOME}/credstore.encrypted/my_api_key"
 UNIT_DIR="${CONFIG_HOME}/systemd/user"
 UNIT_FILE="${UNIT_DIR}/${SERVICE_NAME}.service"
 
 # --- Checks ---
-if ! command -v podman &> /dev/null; then
-    echo "Error: podman is not installed."
-    exit 1
-fi
-
-echo "Checking for runtime image: ${RUNTIME_IMAGE}..."
-if ! podman image exists "${RUNTIME_IMAGE}:latest"; then
-    echo "Error: Image ${RUNTIME_IMAGE}:latest not found in user store. Please run src/build_image.sh."
+echo "Checking for binary: ${BINARY_PATH}..."
+if [[ ! -x "$BINARY_PATH" ]]; then
+    echo "Error: Binary ${BINARY_PATH} not found or not executable."
+    echo "Build and install it with src/build_binary.sh or set BINARY_PATH."
     exit 1
 fi
 
@@ -51,7 +48,7 @@ install -d -m 0755 "$UNIT_DIR"
 
 # Read template, substitute variables, and write to unit file
 sed -e "s|{{SERVICE_NAME}}|${SERVICE_NAME}|g" \
-    -e "s|{{RUNTIME_IMAGE}}|${RUNTIME_IMAGE}|g" \
+    -e "s|{{BINARY_PATH}}|${BINARY_PATH}|g" \
     "${SCRIPT_DIR}/iterllm.service.template" > "${UNIT_FILE}"
 chmod 644 "${UNIT_FILE}"
 

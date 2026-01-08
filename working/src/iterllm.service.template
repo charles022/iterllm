@@ -11,7 +11,6 @@ PrivateMounts=yes
 PrivateTmp=yes
 ProtectSystem=full
 NoNewPrivileges=yes
-Delegate=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 RestrictSUIDSGID=yes
@@ -23,20 +22,11 @@ ProtectKernelLogs=yes
 # Decrypts %h/.config/credstore.encrypted/my_api_key -> $CREDENTIALS_DIRECTORY/my_api_key
 LoadCredentialEncrypted=my_api_key:%h/.config/credstore.encrypted/my_api_key
 
-# --- Container Execution ---
-ExecStart=/usr/bin/podman run \
-    --name {{SERVICE_NAME}} \
-    --replace \
-    --rm \
-    --cgroup-manager=systemd \
-    --sdnotify=conmon \
-    --network=slirp4netns \
-    -v "$CREDENTIALS_DIRECTORY/my_api_key:/run/secrets/my_api_key:ro" \
-    {{RUNTIME_IMAGE}}:latest
+# Make the credential path explicit for the binary.
+Environment=ITERLLM_API_KEY_FILE=%d/my_api_key
 
-# Cleanup
-ExecStop=/usr/bin/podman stop --ignore --time 10 {{SERVICE_NAME}}
-ExecStopPost=/usr/bin/podman rm --force --ignore {{SERVICE_NAME}}
+# --- Binary Execution ---
+ExecStart={{BINARY_PATH}}
 
 [Install]
 WantedBy=default.target

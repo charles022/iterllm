@@ -2,15 +2,8 @@
 
 set -eou pipefail
 
-ARCHIVE_PATH="$1"
-
-newcontainer=$(buildah from scratch)
-mnt=$(buildah mount "$newcontainer")
-dnf install -y \
-    --installroot "$mnt" \
-    --use-host-config \
-    --nodocs \
-    bash
-dnf clean all --installroot "$mnt"
-buildah config --cmd '["/bin/bash","-c","echo Service Started; if [ -f /run/secrets/my_api_key ]; then echo Key available at /run/secrets/my_api_key; else echo Key missing; fi; sleep infinity"]' "$newcontainer"
-buildah commit "$newcontainer" "oci-archive:${ARCHIVE_PATH}"
+cat <<'EOF' >&2
+Runtime container builds are no longer used.
+Use ./build_binary.sh to build and install the compiled binary.
+EOF
+exit 1
